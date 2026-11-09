@@ -1,0 +1,61 @@
+# keepalive.yml — FleetOS always-on pinger.
+#
+# Drop this file into .github/workflows/ of a PUBLIC repo of ours
+# (public-repo Actions minutes are free and unlimited on standard runners).
+# It curls the Render service's /health every 10 minutes so the service
+# never crosses Render Free's 15-minute idle spin-down line.
+#
+# Setup (one time, at deploy):
+#   In the repo -> Settings -> Secrets and variables -> Actions -> Variables,
+#   add a repository VARIABLE named FLEET_NODE_URL with the service's base
+#   URL, e.g. https://fleet-always-on-01.onrender.com
+#   (a variable, not a secret — the URL is public by design.)
+#
+# Notes:
+# - GitHub cron minimum granularity is 5 minutes; 10 minutes leaves slack
+#   for GitHub's best-effort schedule delays while staying under 15.
+# - Scheduled workflows on a repo with no activity can be delayed under
+#   load, and GitHub disables scheduled workflows in forks — use a repo we
+#   own directly.
+# - The first curl after a lapse may take ~60s (cold spin-up); the retry
+#   loop below absorbs that instead of failing the run.
+
+name: fleet-always-on-keepalive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fleet-always-on-keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping /health
+        env:
+          FLEET_NODE_URL: ${{ vars.FLEET_NODE_URL }}
+        run: |
+          if [ -z "$FLEET_NODE_URL" ]; then
+            echo "FLEET_NODE_URL repository variable is not set — see keepalive.yml header."
+            exit 1
+          fi
+          url="${FLEET_NODE_URL%/}/health"
+          echo "Pinging $url"
+          for attempt in 1 2 3; do
+            if body=$(curl -fsS --max-time 90 "$url"); then
+              echo "Health OK (attempt $attempt): $body"
+              exit 0
+            fi
+            echo "Attempt $attempt failed; waiting 20s (cold start can take ~60s)…"
+            sleep 20
+          done
+          echo "Service did not answer /health after 3 attempts."
+          exit 1
