@@ -1,0 +1,1 @@
+{"description":"FleetOS always-on light node — tiny zero-dependency HTTP service for Render Free.","engines":{"node":">=18"},"main":"server.js","name":"fleet-always-on-01","private":true,"scripts":{"start":"node server.js"},"version":"1.0.0"}

@@ -1,0 +1,11 @@
+# Render Blueprint — fleet-always-on-01
+# Free web service. No card at any step: if Render ever asks for one, STOP
+# and report (see DEPLOY-RUNBOOK.md).
+services:
+  - type: web
+    name: fleet-always-on-01
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health
